@@ -5,8 +5,7 @@ namespace EbayApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class AccountSideController : ControllerBase
+    public class EBayAuthNAuthController : ControllerBase
     {
-
     }
 }
