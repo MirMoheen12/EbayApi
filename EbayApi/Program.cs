@@ -19,13 +19,14 @@ builder.Services.AddAuthentication(options =>
 })
 .AddCookie()
 .AddOAuth("eBay", options =>
+
 {
     options.ClientId = "RomanAzi-Inventor-SBX-4d7513f64-220e8727";
     options.ClientSecret = "SBX-d7513f64924e-7ad9-4a67-bddd-1437";
     options.CallbackPath = new PathString("/signin-ebay");
-    options.AuthorizationEndpoint = "https://auth.ebay.com/oauth2/authorize";
-    options.TokenEndpoint = "https://auth.ebay.com/oauth2/token";
-    options.Scope.Add("https://api.ebay.com/oauth/api_scope");
+    options.AuthorizationEndpoint = "https://auth.sandbox.ebay.com/oauth2/authorize";
+    options.TokenEndpoint = "https://auth.sandbox.ebay.com/oauth2/token";
+    options.Scope.Add("https://api.sandbox.ebay.com/oauth/api_scope");
     options.SaveTokens = true;
     options.ClaimActions.MapJsonKey("urn:ebay:profilepicture", "thumbnailUrl");
     options.Events = new OAuthEvents

@@ -20,7 +20,7 @@ namespace EbayApi.Controllers
             string appId = "RomanAzi-Inventor-SBX-4d7513f64-220e8727";
             string certId = "SBX-d7513f64924e-7ad9-4a67-bddd-1437";
             string endPoint = "https://api.sandbox.ebay.com/ws/api.dll";
-            string ruName = "PARTS_PROPER_LL-RomanAzi-Invent-galpqrqcm";
+            string ruName = "Roman_Azimov-RomanAzi-Invent-wdblk";
             string username = "your-ebay-username";
             string password = "your-ebay-password";
 
