@@ -2,7 +2,11 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Diagnostics;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
@@ -13,48 +17,39 @@ namespace EbayApi.Controllers
     [ApiController]
     public class AccountSideController : ControllerBase
     {
-        [HttpGet]
-        public string GetSessionId()
+        private readonly IConfiguration _config;
+        public AccountSideController(IConfiguration config)
         {
-            string devId = "cefccd16-532f-442e-bbc5-4fd962fecf94";
-            string appId = "RomanAzi-Inventor-SBX-4d7513f64-220e8727";
-            string certId = "SBX-d7513f64924e-7ad9-4a67-bddd-1437";
-            string endPoint = "https://api.sandbox.ebay.com/ws/api.dll";
-            string ruName = "Roman_Azimov-RomanAzi-Invent-wdblk";
-            string username = "your-ebay-username";
-            string password = "your-ebay-password";
-
-            string requestUrl = endPoint + "?callname=GetSessionID&appid=" + appId + "&siteid=0&version=967&Routing=default";
-            string requestBody = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
-                                 "<GetSessionIDRequest xmlns=\"urn:ebay:apis:eBLBaseComponents\">" +
-                                 "<RuName>" + ruName + "</RuName>" +
-                                 "</GetSessionIDRequest>";
-
-            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(requestUrl);
-            request.Method = "POST";
-            request.Headers.Add("X-EBAY-API-COMPATIBILITY-LEVEL", "967");
-            request.Headers.Add("X-EBAY-API-DEV-NAME", devId);
-            request.Headers.Add("X-EBAY-API-APP-NAME", appId);
-            request.Headers.Add("X-EBAY-API-CERT-NAME", certId);
-            request.ContentType = "text/xml";
-            request.Headers.Add("X-EBAY-API-REQUEST-ENCODING", "UTF-8");
-
-            using (StreamWriter writer = new StreamWriter(request.GetRequestStream()))
+            this._config = config;
+        }
+        [HttpGet]
+         public async Task<string> GetSessionToken(string code)
+        {
+            string Authrizecode= _config.GetValue<string>("Authorizecode");
+            string redirectUri = _config.GetValue<string>("RedericetUri");
+            var authHeader = new AuthenticationHeaderValue("Basic", Authrizecode);
+            HttpClient client =new HttpClient();
+            client.DefaultRequestHeaders.Authorization = authHeader;
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            var tokenRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/identity/v1/oauth2/token");
+            tokenRequest.Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                writer.Write(requestBody);
-            }
-
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            using (StreamReader reader = new StreamReader(response.GetResponseStream()))
+                ["grant_type"] = "authorization_code",
+                ["code"] = code,
+                ["redirect_uri"] = redirectUri
+            });
+            var tokenResponse = await client.SendAsync(tokenRequest);
+            if (!tokenResponse.IsSuccessStatusCode)
             {
-                string responseXml = reader.ReadToEnd();
-                XmlDocument xmlDoc = new XmlDocument();
-                xmlDoc.LoadXml(responseXml);
-                string sessionId = xmlDoc.SelectSingleNode("//SessionID").InnerText;
-
-                // Use the sessionId to authenticate further API requests
-                return sessionId;
+                var errorResponse = await tokenResponse.Content.ReadAsStringAsync();
+                return errorResponse;
             }
+            var tokenResponseContent = await tokenResponse.Content.ReadAsStringAsync();
+            var tokenJson = JObject.Parse(tokenResponseContent);
+            var accessToken = (string)tokenJson["access_token"];
+
+            return accessToken;
+
         }
 
         public static string Serialize<T>(T dataToSerialize)
