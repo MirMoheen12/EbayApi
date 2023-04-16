@@ -1,9 +1,13 @@
 ﻿using EbayApi.AbaysideModels;
+using EbayApi.DbModels;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -13,58 +17,44 @@ using System.Xml.Serialization;
 
 namespace EbayApi.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/[controller]/[Action]")]
     [ApiController]
     public class AccountSideController : ControllerBase
     {
         private readonly IConfiguration _config;
-        public AccountSideController(IConfiguration config)
+        private readonly ApplicationDbContext _context;
+        public AccountSideController(IConfiguration config,ApplicationDbContext context)
         {
             this._config = config;
+            this._context = context;
         }
-        [HttpGet]
-         public async Task<string> GetSessionToken(string code)
+       
+        private AllUsers ValidateUser(AllUsers allUsers)
         {
-            string Authrizecode= _config.GetValue<string>("Authorizecode");
-            string redirectUri = _config.GetValue<string>("RedericetUri");
-            var authHeader = new AuthenticationHeaderValue("Basic", Authrizecode);
-            HttpClient client =new HttpClient();
-            client.DefaultRequestHeaders.Authorization = authHeader;
-            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            var tokenRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/identity/v1/oauth2/token");
-            tokenRequest.Content = new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "authorization_code",
-                ["code"] = code,
-                ["redirect_uri"] = redirectUri
-            });
-            var tokenResponse = await client.SendAsync(tokenRequest);
-            if (!tokenResponse.IsSuccessStatusCode)
-            {
-                var errorResponse = await tokenResponse.Content.ReadAsStringAsync();
-                return errorResponse;
-            }
-            var tokenResponseContent = await tokenResponse.Content.ReadAsStringAsync();
-            var tokenJson = JObject.Parse(tokenResponseContent);
-            var accessToken = (string)tokenJson["access_token"];
-
-            return accessToken;
-
+            var data = _context.AllUsers.Where(x => x.UserEmail == allUsers.UserEmail && x.UserPassword == allUsers.UserPassword).FirstOrDefault();
+            return data;
         }
-
-        public static string Serialize<T>(T dataToSerialize)
+        private string GenerateToken()
         {
-            try
-            {
-                var stringwriter = new System.IO.StringWriter();
-                var serializer = new XmlSerializer(typeof(T));
-                serializer.Serialize(stringwriter, dataToSerialize);
-                return stringwriter.ToString();
-            }
-            catch
-            {
-                throw;
-            }
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:key"]));
+            var crdentials=new SigningCredentials(securityKey,SecurityAlgorithms.HmacSha256);
+            var token = new JwtSecurityToken(_config["Jwt:Issuer"], _config["Jwt:Audience"], null, expires: DateTime.Now.AddMinutes(5), signingCredentials: crdentials);
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
+        [AllowAnonymous]
+        [HttpPost]
+        public string Login(AllUsers users)
+        {
+            string response = null;
+            var User=ValidateUser(users);
+            if(User!=null)
+            {
+                var token=GenerateToken();
+                response = token;
+            }
+            return response;
+        }
+
+   
     }
 }

@@ -1,44 +1,73 @@
 ﻿using EbayApi.AbaysideModels;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
 namespace EbayApi.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class EBayAuthNAuthController : ControllerBase
     {
-        [HttpGet]
-        public async Task<IActionResult> GetAsync(string appId, string ruName)
+        private readonly IConfiguration _config;
+        public EBayAuthNAuthController(IConfiguration config)
         {
 
-            using (var httpClient = new HttpClient())
-            {
-                var url = $"https://api.sandbox.ebay.com/ws/api.dll?callname=GetSessionID&appid={appId}&siteid=0&version=967&routing=default&RequesterCredentials=<eBayAuthToken%20xmlns=\"urn:ebay:apis:eBLBaseComponents\"><![CDATA[APP_AUTH_TOKEN]]></eBayAuthToken>&RuName={ruName}";
-                var response = await httpClient.GetAsync(url);
+            _config = config;
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    // handle error
-                    throw new Exception("Failed to get session ID");
-                }
-
-                var responseContent = await response.Content.ReadAsStringAsync();
-                var xmlDoc = new XmlDocument();
-                xmlDoc.LoadXml(responseContent);
-
-                var sessionNode = xmlDoc.GetElementsByTagName("SessionID")[0];
-               
-                
-
-            }
-            return null;
         }
 
-    
+        [HttpGet]
+        public async Task<string> GetSessionToken(string code)
+        {
+            string Authrizecode = _config.GetValue<string>("Authorizecode");
+            string redirectUri = _config.GetValue<string>("RedericetUri");
+            var authHeader = new AuthenticationHeaderValue("Basic", Authrizecode);
+            HttpClient client = new HttpClient();
+            client.DefaultRequestHeaders.Authorization = authHeader;
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            var tokenRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/identity/v1/oauth2/token");
+            tokenRequest.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "authorization_code",
+                ["code"] = code,
+                ["redirect_uri"] = redirectUri
+            });
+            var tokenResponse = await client.SendAsync(tokenRequest);
+            if (!tokenResponse.IsSuccessStatusCode)
+            {
+                var errorResponse = await tokenResponse.Content.ReadAsStringAsync();
+                return errorResponse;
+            }
+            var tokenResponseContent = await tokenResponse.Content.ReadAsStringAsync();
+            var tokenJson = JObject.Parse(tokenResponseContent);
+            var accessToken = (string)tokenJson["access_token"];
+
+            return accessToken;
+
+        }
+
+        public static string Serialize<T>(T dataToSerialize)
+        {
+            try
+            {
+                var stringwriter = new System.IO.StringWriter();
+                var serializer = new XmlSerializer(typeof(T));
+                serializer.Serialize(stringwriter, dataToSerialize);
+                return stringwriter.ToString();
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
 
     }
 }
